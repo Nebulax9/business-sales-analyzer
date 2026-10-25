@@ -38,7 +38,7 @@ def analyze_products(sales_data):
     profit_by_product = revenue_by_product - cost_by_product
 
     # Profit Margin by Product
-    profit_margin_by_product = (profit_by_product / revenue_by_product) * 100
+    profit_margin_by_product = ((profit_by_product / revenue_by_product) * 100).round(2)
 
     # Quantity by Product
     quantity_by_product = sales_data.groupby("Product")["Quantity"].sum()

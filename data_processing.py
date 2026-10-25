@@ -50,3 +50,22 @@ def validate_data(sales_data):
             errors.append("The Date column contains a value that cannot be treated as a date.")
 
     return errors
+
+
+def clean_data(sales_data):
+
+    # Convert numeric columns to actual numeric data types
+    numeric_columns = ["Revenue", "Cost", "Quantity"]
+
+    for column in numeric_columns:
+        sales_data[column] = pd.to_numeric(sales_data[column])
+
+    # Convert Date to pandas datetime
+    sales_data["Date"] = pd.to_datetime(sales_data["Date"])
+
+    # Remove extra spaces and standardize capitalization
+    sales_data["Product"] = sales_data["Product"].str.strip().str.title()
+    sales_data["Region"] = sales_data["Region"].str.strip().str.title()
+
+    return sales_data
+

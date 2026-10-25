@@ -1,70 +1,101 @@
+import streamlit as st
 import pandas as pd
+from data_processing import load_data, validate_data, clean_data
+from analysis import calculate_overall_metrics, analyze_products, analyze_regions, analyze_months
+from charts import create_monthly_financial_chart, create_product_performance_chart, create_region_performance_chart, create_monthly_revenue_growth_chart, create_product_sales_volume_chart
+
+# Title for my user interface
+st.title("Sales Analytics Dashboard")
+
+# Upload data
+uploaded_file = st.file_uploader("Upload your sales file(Excel/CSV):", type=["xlsx", "csv"])
+
+# Use panda to load the data
+if uploaded_file is not None:
+    sales_data = load_data(uploaded_file)
 
 
-# Load the Excel sales data
-sales_data = pd.read_excel("sample_sales.xlsx")
-print(sales_data)
+    # Check if data is valid
+    errors =  validate_data(sales_data)
+
+    if len(errors) > 0:
+        for erorr in errors:
+            st.error(erorr)
+        st.stop()
+
+    # Data is valid so cleaning it now 
+    sales_data = clean_data(sales_data)
+
+    # Filter work
+    products = sales_data["Product"].unique()
+    selected_products = st.sidebar.multiselect("Product", products, default=products)
+    product_filter = sales_data["Product"].isin(selected_products)
+
+    regions = sales_data["Region"].unique()
+    selected_regions = st.sidebar.multiselect("Region", regions, default=regions)
+    region_filter = sales_data["Region"].isin(selected_regions)
+
+    filtered_sales_data = sales_data[product_filter & region_filter]
+
+    if filtered_sales_data.empty:
+        st.error("No sales records match the selected filters.")
+        st.stop()
+
+    # Analysis
+    overall_results = calculate_overall_metrics(filtered_sales_data)
+    product_results = analyze_products(filtered_sales_data)
+    region_results = analyze_regions(filtered_sales_data)
+    month_results = analyze_months(filtered_sales_data)
 
 
-# Basic Business Metrics
-total_revenue = sales_data["Revenue"].sum()
-total_cost = sales_data["Cost"].sum()
-total_profit = total_revenue - total_cost
-total_quantity = sales_data["Quantity"].sum()
+    # Cards
+    kpi_columns = st.columns(3)
 
-print(f"The total revenue is: ${total_revenue}")
-print(f"The total cost is: ${total_cost}")
-print(f"The total profit is: ${total_profit}")
-print(f"The total quantity sold is: {total_quantity}")
+    kpi_columns[0].metric("Total Revenue", f"${overall_results['total_revenue']:,.0f}")
+    kpi_columns[1].metric("Total Cost", f"${overall_results['total_cost']:,.0f}")
+    kpi_columns[2].metric("Total Profit", f"${overall_results['total_profit']:,.0f}")
 
+    kpi_columns_2 = st.columns(3)
 
-# Highest-Revenue Product
-revenue_by_product = sales_data.groupby("Product")["Revenue"].sum()
-highest_revenue_product = revenue_by_product.idxmax()
-highest_product_revenue = revenue_by_product.max()
-
-print(f"The company's highest-revenue product is a {highest_revenue_product}, with a total revenue of ${highest_product_revenue}.")
+    kpi_columns_2[0].metric("Profit Margin", f"{overall_results['overall_profit_margin']:.0f}%")
+    kpi_columns_2[2].metric("Quantity Sold", f"{overall_results['total_quantity']:,.0f}")
 
 
-# Highest Individual Revenue Transaction
-highest_transaction_index = sales_data["Revenue"].idxmax()
-highest_transaction_revenue = sales_data["Revenue"].max()
-highest_transaction_product = sales_data.loc[highest_transaction_index, "Product"]
+    # Making charts
+    # Monthly Financial Performance
+    st.subheader("Monthly Financial Performance")
+    monthly_figure = create_monthly_financial_chart(month_results)
+    st.pyplot(monthly_figure)
 
-print(f"The highest individual revenue transaction was for a {highest_transaction_product}, with revenue of ${highest_transaction_revenue}.")
+    # Product and Region charts side by side
+    chart_columns = st.columns(2)
 
+    product_figure = create_product_performance_chart(product_results)
+    region_figure = create_region_performance_chart(region_results)
 
-# Highest-Revenue Region
-revenue_by_region = sales_data.groupby("Region")["Revenue"].sum()
-highest_revenue_region = revenue_by_region.idxmax()
-highest_region_revenue = revenue_by_region.max()
+    chart_columns[0].subheader("Product Performance")
+    chart_columns[0].pyplot(product_figure)
 
-print(f"The highest-revenue region is {highest_revenue_region}, with total revenue of ${highest_region_revenue}.")
+    chart_columns[1].subheader("Regional Performance")
+    chart_columns[1].pyplot(region_figure)
 
-# Highest Profit-Margin Product
-cost_by_product = sales_data.groupby("Product")["Cost"].sum()
-profit_by_product = revenue_by_product - cost_by_product
-profit_margin_by_product = (profit_by_product / revenue_by_product) * 100
+    # Monthly Revenue Growth
+    st.subheader("Monthly Revenue Growth")
+    growth_figure = create_monthly_revenue_growth_chart(month_results)
+    st.pyplot(growth_figure)
 
-highest_margin_product = profit_margin_by_product.idxmax()
-highest_profit_margin = profit_margin_by_product.max()
+    # Product Sales Volume Over Time
+    st.subheader("Product Sales Volume Over Time")
+    volume_figure = create_product_sales_volume_chart(month_results)
+    st.pyplot(volume_figure)
 
-print(f"The product with the highest profit margin is {highest_margin_product}, with a margin of {highest_profit_margin:.2f}%.")
+    # Table 
+    product_table = pd.DataFrame({
+        "Revenue": product_results["revenue_by_product"],
+        "Cost": product_results["cost_by_product"],
+        "Profit": product_results["profit_by_product"],
+        "Profit Margin": product_results["profit_margin_by_product"],
+        "Quantity Sold": product_results["quantity_by_product"]})
 
-# Highest Profit Product
-highest_profit_product = profit_by_product.idxmax()
-highest_product_profit = profit_by_product.max()
-
-print(f"The product with the highest total profit is {highest_profit_product}, with a profit of ${highest_product_profit}.")
-
-# Most-Sold Product
-quantity_by_product = sales_data.groupby("Product")["Quantity"].sum()
-most_sold_product = quantity_by_product.idxmax()
-most_sold_quantity = quantity_by_product.max()
-
-print(f"The most-sold product is {most_sold_product}, with {most_sold_quantity} units sold.")
-
-# Overall Profit Margin
-overall_profit_margin = (total_profit / total_revenue) * 100
-
-print(f"The overall profit margin is {overall_profit_margin:.2f}%.")
+    st.subheader("Product Details")
+    st.dataframe(product_table)
